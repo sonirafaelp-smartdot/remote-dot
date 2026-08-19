@@ -704,8 +704,26 @@ export function TicketSystemView() {
                     </div>
                   </div>
 
-                  {/* Actions (Resolve / Close / Reopen) */}
+                  {/* Actions (Resolve / Close / Reopen / WhatsApp) */}
                   <div className="flex items-center gap-2">
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(
+                        `🔔 *DOTDESK - TICKET #${selectedTicket.ticket_number}*\n` +
+                        `⚡ *Prioridad:* ${selectedTicket.priority}\n` +
+                        `🏢 *Cliente:* ${selectedTicket.customer?.company_name || 'Cliente'}\n` +
+                        `💻 *Equipo:* ${selectedTicket.device?.computer_name || 'PC'}\n` +
+                        `👤 *Usuario:* ${selectedTicket.contact_name || selectedTicket.device?.windows_user || 'Usuario'}\n` +
+                        `📝 *Problema:* ${selectedTicket.problem_description}`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all flex items-center gap-1.5"
+                      title="Compartir o enviar por WhatsApp Web"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>WhatsApp</span>
+                    </a>
+
                     {selectedTicket.status !== TicketStatus.RESOLVED && selectedTicket.status !== TicketStatus.CLOSED && (
                       <button
                         onClick={() => setShowResolveModal(true)}

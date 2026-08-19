@@ -21,7 +21,10 @@ import {
   Trash2,
   UserPlus,
   Wrench,
-  Users
+  Users,
+  Edit,
+  Save,
+  X
 } from 'lucide-react';
 
 export const AuthManager: React.FC = () => {
@@ -38,8 +41,10 @@ export const AuthManager: React.FC = () => {
 
   // Technicians Management State
   const [techniciansList, setTechniciansList] = useState<any[]>([]);
-  const [showAddTechModal, setShowAddTechModal] = useState<boolean>(false);
-  const [newTechData, setNewTechData] = useState({
+  const [showTechModal, setShowTechModal] = useState<boolean>(false);
+  const [techModalMode, setTechModalMode] = useState<'create' | 'edit'>('create');
+  const [editingTechId, setEditingTechId] = useState<string>('');
+  const [techFormData, setTechFormData] = useState({
     full_name: '',
     email: '',
     password: '',
@@ -61,9 +66,54 @@ export const AuthManager: React.FC = () => {
     }
   };
 
-  const handleCreateTechnician = async (e: React.FormEvent) => {
+  const handleOpenCreateTech = () => {
+    setTechModalMode('create');
+    setEditingTechId('');
+    setTechFormData({
+      full_name: '',
+      email: '',
+      password: '',
+      specialty: 'Sistemas Windows & Redes',
+      max_concurrent_sessions: 3,
+    });
+    setShowTechModal(true);
+  };
+
+  const handleOpenEditTech = (tech: any) => {
+    setTechModalMode('edit');
+    setEditingTechId(tech.id);
+    setTechFormData({
+      full_name: tech.full_name,
+      email: tech.email,
+      password: '',
+      specialty: tech.specialty || 'Sistemas Windows & Redes',
+      max_concurrent_sessions: tech.max_concurrent_sessions || 3,
+    });
+    setShowTechModal(true);
+  };
+
+  const handleDeleteTechnician = async (techId: string, name: string) => {
+    if (!confirm(`¿Estás seguro de dar de baja al técnico "${name}"?`)) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/v1/auth/technicians/${techId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTechActionMessage({ type: 'success', text: `Técnico "${name}" eliminado del sistema.` });
+        fetchTechnicians();
+      } else {
+        const err = await res.json();
+        setTechActionMessage({ type: 'error', text: err.error || 'Error al eliminar técnico' });
+      }
+    } catch (err: any) {
+      setTechActionMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitTechnician = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTechData.full_name || !newTechData.email || !newTechData.password) {
+    if (!techFormData.full_name || !techFormData.email || (techModalMode === 'create' && !techFormData.password)) {
       setTechActionMessage({ type: 'error', text: 'Por favor complete todos los campos obligatorios.' });
       return;
     }
@@ -71,16 +121,24 @@ export const AuthManager: React.FC = () => {
     setLoading(true);
     setTechActionMessage(null);
     try {
-      const res = await fetch('/api/v1/auth/technicians', {
-        method: 'POST',
+      const url = techModalMode === 'create' ? '/api/v1/auth/technicians' : `/api/v1/auth/technicians/${editingTechId}`;
+      const method = techModalMode === 'create' ? 'POST' : 'PUT';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTechData),
+        body: JSON.stringify(techFormData),
       });
       const data = await res.json();
       if (res.ok) {
-        setTechActionMessage({ type: 'success', text: `¡Técnico "${data.technician.full_name}" creado con éxito!` });
-        setShowAddTechModal(false);
-        setNewTechData({
+        setTechActionMessage({
+          type: 'success',
+          text: techModalMode === 'create'
+            ? `¡Técnico "${data.technician.full_name}" creado con éxito!`
+            : `¡Datos del técnico "${data.technician.full_name}" actualizados con éxito!`,
+        });
+        setShowTechModal(false);
+        setTechFormData({
           full_name: '',
           email: '',
           password: '',
@@ -89,7 +147,7 @@ export const AuthManager: React.FC = () => {
         });
         fetchTechnicians();
       } else {
-        setTechActionMessage({ type: 'error', text: data.error || 'Error al registrar técnico' });
+        setTechActionMessage({ type: 'error', text: data.error || 'Error al procesar técnico' });
       }
     } catch (err: any) {
       setTechActionMessage({ type: 'error', text: err.message });
@@ -371,15 +429,31 @@ export const AuthManager: React.FC = () => {
                     <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-500/20 text-red-400 flex items-center justify-center font-bold text-sm">
                       {t.full_name?.charAt(0) || 'T'}
                     </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        t.is_online
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {t.is_online ? '• DISPONIBLE' : 'OFFLINE'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          t.is_online
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {t.is_online ? '• DISPONIBLE' : 'OFFLINE'}
+                      </span>
+                      <button
+                        onClick={() => handleOpenEditTech(t)}
+                        className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition"
+                        title="Editar datos del técnico"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTechnician(t.id, t.full_name)}
+                        className="p-1 rounded bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition"
+                        title="Eliminar técnico"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <h4 className="font-bold text-sm text-white">{t.full_name}</h4>
@@ -420,7 +494,7 @@ export const AuthManager: React.FC = () => {
 
             {/* Add Technician Card Button */}
             <button
-              onClick={() => setShowAddTechModal(true)}
+              onClick={handleOpenCreateTech}
               className="bg-slate-900/40 border-2 border-dashed border-slate-800 hover:border-red-500/40 hover:bg-red-950/10 rounded-xl p-6 transition-all flex flex-col items-center justify-center gap-3 text-center min-h-[220px] group"
             >
               <div className="w-12 h-12 rounded-full bg-slate-800 group-hover:bg-red-600/20 text-slate-400 group-hover:text-red-400 flex items-center justify-center transition-colors">
@@ -833,66 +907,71 @@ export const AuthManager: React.FC = () => {
       )}
 
       {/* Add Technician Modal */}
-      {showAddTechModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      {/* Modal to Add / Edit Technician */}
+      {showTechModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-red-600/10 border border-red-500/30 text-red-400 flex items-center justify-center">
-                  <UserPlus className="w-5 h-5" />
+                  {techModalMode === 'create' ? <UserPlus className="w-5 h-5" /> : <Edit className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-base">Registrar Técnico Operativo</h3>
-                  <p className="text-xs text-slate-400">Crear credenciales para soporte remoto</p>
+                  <h3 className="font-bold text-white text-base">
+                    {techModalMode === 'create' ? 'Registrar Técnico Operativo' : 'Editar Datos del Técnico'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {techModalMode === 'create' ? 'Crear credenciales para soporte remoto' : 'Actualizar perfil, especialidad o contraseña'}
+                  </p>
                 </div>
               </div>
               <button
-                onClick={() => setShowAddTechModal(false)}
+                onClick={() => setShowTechModal(false)}
                 className="text-slate-400 hover:text-white p-1"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateTechnician} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSubmitTechnician} className="space-y-3.5 text-xs">
               <div>
                 <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                  Nombre Completo del Técnico:
+                  Nombre Completo del Técnico (*):
                 </label>
                 <input
                   type="text"
                   required
                   placeholder="Ej: Ing. Carlos Morales"
-                  value={newTechData.full_name}
-                  onChange={(e) => setNewTechData({ ...newTechData, full_name: e.target.value })}
+                  value={techFormData.full_name}
+                  onChange={(e) => setTechFormData({ ...techFormData, full_name: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-red-500"
                 />
               </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                  Correo Electrónico (Login):
+                  Correo Electrónico (Login) (*):
                 </label>
                 <input
                   type="email"
                   required
                   placeholder="carlos.morales@smartdot.com"
-                  value={newTechData.email}
-                  onChange={(e) => setNewTechData({ ...newTechData, email: e.target.value })}
+                  value={techFormData.email}
+                  onChange={(e) => setTechFormData({ ...techFormData, email: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-red-500"
                 />
               </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                  Contraseña Temporal:
+                  {techModalMode === 'create' ? 'Contraseña Temporal (*):' : 'Nueva Contraseña (dejar vacía para no alterar):'}
                 </label>
                 <input
                   type="password"
-                  required
-                  placeholder="Tech123! o clave segura"
-                  value={newTechData.password}
-                  onChange={(e) => setNewTechData({ ...newTechData, password: e.target.value })}
+                  required={techModalMode === 'create'}
+                  placeholder={techModalMode === 'create' ? 'Tech123! o clave segura' : '••••••••••••'}
+                  value={techFormData.password}
+                  onChange={(e) => setTechFormData({ ...techFormData, password: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-red-500"
                 />
               </div>
@@ -902,8 +981,8 @@ export const AuthManager: React.FC = () => {
                   Especialidad / Área de Soporte:
                 </label>
                 <select
-                  value={newTechData.specialty}
-                  onChange={(e) => setNewTechData({ ...newTechData, specialty: e.target.value })}
+                  value={techFormData.specialty}
+                  onChange={(e) => setTechFormData({ ...techFormData, specialty: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-red-500"
                 >
                   <option value="Sistemas Windows & Redes">Sistemas Windows & Redes</option>
@@ -922,8 +1001,8 @@ export const AuthManager: React.FC = () => {
                   type="number"
                   min="1"
                   max="10"
-                  value={newTechData.max_concurrent_sessions}
-                  onChange={(e) => setNewTechData({ ...newTechData, max_concurrent_sessions: Number(e.target.value) })}
+                  value={techFormData.max_concurrent_sessions}
+                  onChange={(e) => setTechFormData({ ...techFormData, max_concurrent_sessions: Number(e.target.value) })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-red-500"
                 />
               </div>
@@ -931,7 +1010,7 @@ export const AuthManager: React.FC = () => {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowAddTechModal(false)}
+                  onClick={() => setShowTechModal(false)}
                   className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                 >
                   Cancelar
@@ -941,7 +1020,7 @@ export const AuthManager: React.FC = () => {
                   disabled={loading}
                   className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-950/40"
                 >
-                  {loading ? 'Guardando...' : 'Crear Técnico'}
+                  {loading ? 'Guardando...' : techModalMode === 'create' ? 'Crear Técnico' : 'Actualizar Técnico'}
                 </button>
               </div>
             </form>

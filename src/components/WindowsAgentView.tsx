@@ -106,7 +106,7 @@ export const WindowsAgentView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'agent-app' | 'dual-simulation' | 'csharp-code'>('agent-app');
 
   // Agent Customizable Branding Settings
-  const [brandName, setBrandName] = useState<string>('RemoteDesk Enterprise');
+  const [brandName, setBrandName] = useState<string>('Remote DOT Desk Enterprise');
   const [supportPhone, setSupportPhone] = useState<string>('+1 (809) 555-0199');
   const [supportEmail, setSupportEmail] = useState<string>('soporte@remotedesk.com');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -534,7 +534,7 @@ export const WindowsAgentView: React.FC = () => {
                         RD
                       </div>
                       <span className="font-semibold text-xs text-slate-200 tracking-wide">
-                        {brandName} • Agente de Soporte
+                        Remote DOT Desk Enterprise - Agente de Soporte
                       </span>
                     </div>
 

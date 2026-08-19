@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../database/db.ts';
 import { realtimeHub } from '../realtime.ts';
+import { sendTicketWhatsAppNotification } from '../services/whatsapp.ts';
 import {
   SupportTicket,
   TicketPriority,
@@ -209,9 +210,26 @@ ticketsRouter.post('/', (req: Request, res: Response) => {
   const ticketNumber = db.generateTicketNumber();
   const ticketId = `t-${Date.now()}`;
 
-  const validPriority = Object.values(TicketPriority).includes(priority)
+  const priorityMap: Record<string, TicketPriority> = {
+    LOW: TicketPriority.LOW,
+    Baja: TicketPriority.LOW,
+    baja: TicketPriority.LOW,
+    MEDIUM: TicketPriority.MEDIUM,
+    Media: TicketPriority.MEDIUM,
+    media: TicketPriority.MEDIUM,
+    HIGH: TicketPriority.HIGH,
+    Alta: TicketPriority.HIGH,
+    alta: TicketPriority.HIGH,
+    CRITICAL: TicketPriority.CRITICAL,
+    URGENT: TicketPriority.CRITICAL,
+    Critica: TicketPriority.CRITICAL,
+    'Crítica': TicketPriority.CRITICAL,
+    critica: TicketPriority.CRITICAL,
+  };
+
+  const validPriority = priorityMap[priority] || (Object.values(TicketPriority).includes(priority)
     ? priority
-    : TicketPriority.MEDIUM;
+    : TicketPriority.MEDIUM);
 
   const validCategory = Object.values(TicketCategory).includes(category)
     ? category
@@ -261,6 +279,15 @@ ticketsRouter.post('/', (req: Request, res: Response) => {
     [TicketPriority.LOW]: 'info' as const,
   };
 
+  const customerObj = db.customers.get(finalCustomerId);
+
+  // Trigger WhatsApp notification to technicians
+  sendTicketWhatsAppNotification(
+    newTicket,
+    device.computer_name,
+    customerObj?.company_name || finalCustomerId
+  ).catch((err) => console.error('[WhatsApp Trigger Error]:', err));
+
   realtimeHub.broadcast({
     type: 'TICKET_CREATED',
     topic: 'tickets',
@@ -272,6 +299,7 @@ ticketsRouter.post('/', (req: Request, res: Response) => {
       ticket_number: ticketNumber,
       priority: validPriority,
       device_name: device.computer_name,
+      customer_name: customerObj?.company_name,
     },
   });
 

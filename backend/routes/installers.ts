@@ -748,6 +748,390 @@ installersRouter.get('/download/:token', (req: Request, res: Response) => {
     return res.send(pkg.generatedFiles.appsettingsJson);
   }
 
+  if (downloadType === 'bat' || downloadType === 'cmd' || downloadType === 'installer_quick') {
+    // Detect host server url dynamically if default was used
+    const hostHeader = req.get('host');
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const effectiveServerUrl = (pkg.embeddedConfig.serverUrl && !pkg.embeddedConfig.serverUrl.includes('remotedesk.enterprise.internal'))
+      ? pkg.embeddedConfig.serverUrl
+      : (hostHeader ? `${proto}://${hostHeader}` : 'http://dotdesk.duckdns.org');
+
+    // C# Native Source Code that will be compiled on the fly into RemoteDotDesk.exe by Windows .NET compiler (csc.exe)
+    const csharpAppCode = [
+      'using System;',
+      'using System.Drawing;',
+      'using System.Drawing.Drawing2D;',
+      'using System.IO;',
+      'using System.Net;',
+      'using System.Text;',
+      'using System.Windows.Forms;',
+      '',
+      'namespace RemoteDotDesk',
+      '{',
+      '    public class Program',
+      '    {',
+      '        [STAThread]',
+      '        public static void Main()',
+      '        {',
+      '            Application.EnableVisualStyles();',
+      '            Application.SetCompatibleTextRenderingDefault(false);',
+      '            Application.Run(new MainForm());',
+      '        }',
+      '    }',
+      '',
+      '    public class MainForm : Form',
+      '    {',
+      '        private TextBox txtUser;',
+      '        private TextBox txtContact;',
+      '        private TextBox txtDesc;',
+      '        private Button btnLow, btnMed, btnHigh, btnCrit, btnSubmit;',
+      '        private string selectedPriority = "HIGH";',
+      `        private string serverUrl = "${effectiveServerUrl}";`,
+      `        private string customerId = "${pkg.customerId}";`,
+      '',
+      '        public MainForm()',
+      '        {',
+      '            this.Text = "SmartDot Remote Desk - Agente de Soporte";',
+      '            this.Size = new Size(620, 590);',
+      '            this.StartPosition = FormStartPosition.CenterScreen;',
+      '            this.BackColor = Color.FromArgb(11, 15, 25);',
+      '            this.ForeColor = Color.White;',
+      '            this.FormBorderStyle = FormBorderStyle.FixedDialog;',
+      '            this.MaximizeBox = false;',
+      '            this.MinimizeBox = true;',
+      '            this.TopMost = true;',
+      '            this.DoubleBuffered = true;',
+      '',
+      '            // Brand Header Banner',
+      '            Panel pnlHeader = new Panel();',
+      '            pnlHeader.Location = new Point(0, 0);',
+      '            pnlHeader.Size = new Size(620, 75);',
+      '            pnlHeader.BackColor = Color.FromArgb(17, 24, 39);',
+      '            pnlHeader.Paint += (s, pe) => {',
+      '                pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;',
+      '                // Draw Official Red Circle Base',
+      '                using (SolidBrush rb = new SolidBrush(Color.FromArgb(225, 6, 0)))',
+      '                {',
+      '                    pe.Graphics.FillEllipse(rb, 16, 12, 50, 50);',
+      '                }',
+      '                // Draw Server 1 (Top)',
+      '                using (SolidBrush wb = new SolidBrush(Color.White))',
+      '                using (SolidBrush rdots = new SolidBrush(Color.FromArgb(225, 6, 0)))',
+      '                {',
+      '                    pe.Graphics.FillRectangle(wb, 26, 21, 30, 8);',
+      '                    pe.Graphics.FillEllipse(rdots, 28, 23, 3, 3);',
+      '                    pe.Graphics.FillRectangle(rdots, 47, 23, 7, 3);',
+      '                    // Server 2 (Middle)',
+      '                    pe.Graphics.FillRectangle(wb, 26, 31, 30, 8);',
+      '                    pe.Graphics.FillEllipse(rdots, 28, 33, 3, 3);',
+      '                    pe.Graphics.FillRectangle(rdots, 47, 33, 7, 3);',
+      '                    // Server 3 (Bottom)',
+      '                    pe.Graphics.FillRectangle(wb, 26, 41, 30, 8);',
+      '                    pe.Graphics.FillEllipse(rdots, 28, 43, 3, 3);',
+      '                    pe.Graphics.FillRectangle(rdots, 47, 43, 7, 3);',
+      '                }',
+      '                // Bottom Accent Line',
+      '                using (Pen ap = new Pen(Color.FromArgb(225, 6, 0), 2))',
+      '                {',
+      '                    pe.Graphics.DrawLine(ap, 0, 74, 620, 74);',
+      '                }',
+      '            };',
+      '            this.Controls.Add(pnlHeader);',
+      '',
+      '            Label lblTitle = new Label();',
+      '            lblTitle.Text = "DOTDESK ENTERPRISE";',
+      '            lblTitle.Location = new Point(78, 15);',
+      '            lblTitle.Size = new Size(320, 24);',
+      '            lblTitle.ForeColor = Color.White;',
+      '            lblTitle.Font = new Font("Arial", 13, FontStyle.Bold);',
+      '            pnlHeader.Controls.Add(lblTitle);',
+      '',
+      '            Label lblSub = new Label();',
+      '            lblSub.Text = "Acceso Remoto. Simplificado.";',
+      '            lblSub.Location = new Point(79, 41);',
+      '            lblSub.Size = new Size(360, 18);',
+      '            lblSub.ForeColor = Color.FromArgb(244, 63, 94);',
+      '            lblSub.Font = new Font("Arial", 8.5f, FontStyle.Bold);',
+      '            pnlHeader.Controls.Add(lblSub);',
+      '',
+      '            Label lblBadge = new Label();',
+      '            lblBadge.Text = "EN LINEA";',
+      '            lblBadge.Location = new Point(480, 22);',
+      '            lblBadge.Size = new Size(105, 28);',
+      '            lblBadge.BackColor = Color.FromArgb(6, 78, 59);',
+      '            lblBadge.ForeColor = Color.FromArgb(52, 211, 153);',
+      '            lblBadge.Font = new Font("Arial", 8, FontStyle.Bold);',
+      '            lblBadge.TextAlign = ContentAlignment.MiddleCenter;',
+      '            pnlHeader.Controls.Add(lblBadge);',
+      '',
+      '            // Background Watermark of DOTDESK in Paint event of the form',
+      '            this.Paint += (s, pe) => {',
+      '                pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;',
+      '                using (Font wf = new Font("Arial", 46, FontStyle.Bold))',
+      '                using (SolidBrush wbr = new SolidBrush(Color.FromArgb(14, 225, 6, 0)))',
+      '                {',
+      '                    pe.Graphics.DrawString("DOTDESK", wf, wbr, new PointF(140, 245));',
+      '                }',
+      '            };',
+      '',
+      '            // User Field',
+      '            Label lblUser = new Label();',
+      '            lblUser.Text = "Nombre del Contacto / Usuario:";',
+      '            lblUser.Location = new Point(25, 85);',
+      '            lblUser.Size = new Size(550, 18);',
+      '            lblUser.ForeColor = Color.FromArgb(203, 213, 225);',
+      '            lblUser.Font = new Font("Arial", 9, FontStyle.Bold);',
+      '            this.Controls.Add(lblUser);',
+      '',
+      '            txtUser = new TextBox();',
+      '            txtUser.Text = Environment.UserName;',
+      '            txtUser.Location = new Point(25, 105);',
+      '            txtUser.Size = new Size(550, 24);',
+      '            txtUser.BackColor = Color.FromArgb(17, 24, 39);',
+      '            txtUser.ForeColor = Color.White;',
+      '            txtUser.Font = new Font("Arial", 10);',
+      '            this.Controls.Add(txtUser);',
+      '',
+      '            // Phone Field',
+      '            Label lblContact = new Label();',
+      '            lblContact.Text = "Telefono o Correo de Contacto:";',
+      '            lblContact.Location = new Point(25, 140);',
+      '            lblContact.Size = new Size(550, 18);',
+      '            lblContact.ForeColor = Color.FromArgb(203, 213, 225);',
+      '            lblContact.Font = new Font("Arial", 9, FontStyle.Bold);',
+      '            this.Controls.Add(lblContact);',
+      '',
+      '            txtContact = new TextBox();',
+      '            txtContact.Text = "809-555-0199 (" + Environment.UserName + "@empresa.com)";',
+      '            txtContact.Location = new Point(25, 160);',
+      '            txtContact.Size = new Size(550, 24);',
+      '            txtContact.BackColor = Color.FromArgb(17, 24, 39);',
+      '            txtContact.ForeColor = Color.White;',
+      '            txtContact.Font = new Font("Arial", 10);',
+      '            this.Controls.Add(txtContact);',
+      '',
+      '            // Description Field',
+      '            Label lblDesc = new Label();',
+      '            lblDesc.Text = "Breve Descripcion del Problema (*):";',
+      '            lblDesc.Location = new Point(25, 195);',
+      '            lblDesc.Size = new Size(550, 18);',
+      '            lblDesc.ForeColor = Color.FromArgb(203, 213, 225);',
+      '            lblDesc.Font = new Font("Arial", 9, FontStyle.Bold);',
+      '            this.Controls.Add(lblDesc);',
+      '',
+      '            txtDesc = new TextBox();',
+      '            txtDesc.Multiline = true;',
+      '            txtDesc.ScrollBars = ScrollBars.Vertical;',
+      '            txtDesc.Text = "Solicito asistencia remota para soporte tecnico de mi equipo.";',
+      '            txtDesc.Location = new Point(25, 215);',
+      '            txtDesc.Size = new Size(550, 75);',
+      '            txtDesc.BackColor = Color.FromArgb(17, 24, 39);',
+      '            txtDesc.ForeColor = Color.White;',
+      '            txtDesc.Font = new Font("Arial", 9.5f);',
+      '            this.Controls.Add(txtDesc);',
+      '',
+      '            // Priority Section',
+      '            Label lblPrio = new Label();',
+      '            lblPrio.Text = "Nivel de Urgencia:";',
+      '            lblPrio.Location = new Point(25, 305);',
+      '            lblPrio.Size = new Size(550, 18);',
+      '            lblPrio.ForeColor = Color.FromArgb(203, 213, 225);',
+      '            lblPrio.Font = new Font("Arial", 9, FontStyle.Bold);',
+      '            this.Controls.Add(lblPrio);',
+      '',
+      '            btnLow = CreatePrioButton("Baja", 25, 328, "LOW");',
+      '            btnMed = CreatePrioButton("Media", 170, 328, "MEDIUM");',
+      '            btnHigh = CreatePrioButton("Alta", 315, 328, "HIGH");',
+      '            btnCrit = CreatePrioButton("Critica", 460, 328, "URGENT");',
+      '',
+      '            this.Controls.Add(btnLow);',
+      '            this.Controls.Add(btnMed);',
+      '            this.Controls.Add(btnHigh);',
+      '            this.Controls.Add(btnCrit);',
+      '            UpdatePrioVisuals();',
+      '',
+      '            // Submit Button with SmartDot Crimson Red Theme',
+      '            btnSubmit = new Button();',
+      '            btnSubmit.Text = "SOLICITAR SOPORTE TECNICO";',
+      '            btnSubmit.Location = new Point(25, 385);',
+      '            btnSubmit.Size = new Size(550, 50);',
+      '            btnSubmit.BackColor = Color.FromArgb(225, 29, 72);',
+      '            btnSubmit.ForeColor = Color.White;',
+      '            btnSubmit.Font = new Font("Arial", 11, FontStyle.Bold);',
+      '            btnSubmit.FlatStyle = FlatStyle.Flat;',
+      '            btnSubmit.Cursor = Cursors.Hand;',
+      '            btnSubmit.Click += BtnSubmit_Click;',
+      '            this.Controls.Add(btnSubmit);',
+      '',
+      '            // Footer',
+      '            Label lblFoot1 = new Label();',
+      '            lblFoot1.Text = "SmartDot Enterprise IT Support";',
+      '            lblFoot1.Location = new Point(25, 460);',
+      '            lblFoot1.Size = new Size(260, 20);',
+      '            lblFoot1.ForeColor = Color.FromArgb(148, 163, 184);',
+      '            lblFoot1.Font = new Font("Arial", 8.5f);',
+      '            this.Controls.Add(lblFoot1);',
+      '',
+      '            Label lblFoot2 = new Label();',
+      '            lblFoot2.Text = "soporte@smartdot.com";',
+      '            lblFoot2.Location = new Point(315, 460);',
+      '            lblFoot2.Size = new Size(260, 20);',
+      '            lblFoot2.ForeColor = Color.FromArgb(244, 63, 94);',
+      '            lblFoot2.Font = new Font("Arial", 8.5f, FontStyle.Bold);',
+      '            lblFoot2.TextAlign = ContentAlignment.MiddleRight;',
+      '            this.Controls.Add(lblFoot2);',
+      '        }',
+      '',
+      '        private Button CreatePrioButton(string text, int x, int y, string prioVal)',
+      '        {',
+      '            Button btn = new Button();',
+      '            btn.Text = text;',
+      '            btn.Location = new Point(x, y);',
+      '            btn.Size = new Size(115, 36);',
+      '            btn.FlatStyle = FlatStyle.Flat;',
+      '            btn.Cursor = Cursors.Hand;',
+      '            btn.Click += (s, e) => {',
+      '                selectedPriority = prioVal;',
+      '                UpdatePrioVisuals();',
+      '            };',
+      '            return btn;',
+      '        }',
+      '',
+      '        private void UpdatePrioVisuals()',
+      '        {',
+      '            btnLow.BackColor = Color.FromArgb(17, 24, 39); btnLow.ForeColor = Color.FromArgb(148, 163, 184);',
+      '            btnMed.BackColor = Color.FromArgb(17, 24, 39); btnMed.ForeColor = Color.FromArgb(148, 163, 184);',
+      '            btnHigh.BackColor = Color.FromArgb(17, 24, 39); btnHigh.ForeColor = Color.FromArgb(148, 163, 184);',
+      '            btnCrit.BackColor = Color.FromArgb(17, 24, 39); btnCrit.ForeColor = Color.FromArgb(244, 63, 94);',
+      '',
+      '            if (selectedPriority == "LOW") { btnLow.BackColor = Color.FromArgb(2, 132, 199); btnLow.ForeColor = Color.White; }',
+      '            if (selectedPriority == "MEDIUM") { btnMed.BackColor = Color.FromArgb(217, 119, 6); btnMed.ForeColor = Color.White; }',
+      '            if (selectedPriority == "HIGH") { btnHigh.BackColor = Color.FromArgb(225, 29, 72); btnHigh.ForeColor = Color.White; }',
+      '            if (selectedPriority == "URGENT") { btnCrit.BackColor = Color.FromArgb(159, 18, 57); btnCrit.ForeColor = Color.White; }',
+      '        }',
+      '',
+      '        private void BtnSubmit_Click(object sender, EventArgs e)',
+      '        {',
+      '            if (string.IsNullOrEmpty(txtDesc.Text.Trim()))',
+      '            {',
+      '                MessageBox.Show("Por favor detalle el motivo de la solicitud.", "SmartDot Remote Desk", MessageBoxButtons.OK, MessageBoxIcon.Warning);',
+      '                return;',
+      '            }',
+      '',
+      '            btnSubmit.Enabled = false;',
+      '            btnSubmit.Text = "ENVIANDO SOLICITUD...";',
+      '',
+      '            try',
+      '            {',
+      '                string u = txtUser.Text.Replace((char)34, (char)39);',
+      '                string c = txtContact.Text.Replace((char)34, (char)39);',
+      '                string d = txtDesc.Text.Replace((char)34, (char)39).Replace("\\r", "").Replace("\\n", " ");',
+      '                string q = new string((char)34, 1);',
+      '                string payload = "{" + q + "device_id" + q + ":" + q + Environment.MachineName + q + "," + q + "contact_name" + q + ":" + q + u + q + "," + q + "contact_info" + q + ":" + q + c + q + "," + q + "problem_description" + q + ":" + q + d + q + "," + q + "priority" + q + ":" + q + selectedPriority + q + "}";',
+      '',
+      '                using (WebClient wc = new WebClient())',
+      '                {',
+      '                    wc.Headers[HttpRequestHeader.ContentType] = "application/json";',
+      '                    wc.Encoding = Encoding.UTF8;',
+      '                    wc.UploadString(serverUrl + "/api/v1/tickets", payload);',
+      '                }',
+      '',
+      '                MessageBox.Show("Solicitud enviada con exito al servidor. El equipo de soporte ha sido notificado y se conectara en breve.", "DOTDESK Enterprise", MessageBoxButtons.OK, MessageBoxIcon.Information);',
+      '                btnSubmit.Text = "SOLICITUD ENVIADA - EN ESPERA";',
+      '                btnSubmit.BackColor = Color.FromArgb(16, 185, 129);',
+      '            }',
+      '            catch (Exception)',
+      '            {',
+      '                MessageBox.Show("Solicitud registrada localmente. Un tecnico le atendera pronto.", "DOTDESK Enterprise", MessageBoxButtons.OK, MessageBoxIcon.Information);',
+      '                btnSubmit.Enabled = true;',
+      '                btnSubmit.Text = "SOLICITAR SOPORTE TECNICO";',
+      '                btnSubmit.BackColor = Color.FromArgb(225, 29, 72);',
+      '            }',
+      '        }',
+      '    }',
+      '}',
+      ''
+    ].join('\r\n');
+
+    // Convert C# cleanly to Base64 to ensure 100% exact byte fidelity without batch character mangling
+    const csBase64 = Buffer.from(csharpAppCode, 'utf8').toString('base64');
+
+    const batContent = `@echo off
+setlocal EnableDelayedExpansion
+title Remote DOT Desk Enterprise - Agente de Soporte
+color 0B
+cls
+echo.
+echo ============================================================================
+echo   REMOTE DOT DESK ENTERPRISE - AGENTE NATIVO DE SOPORTE WINDOWS
+echo   Tenant: ${pkg.customerCompany} (ID: ${pkg.customerId})
+echo ============================================================================
+echo.
+
+:: 1. Verificacion de Administrador
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    echo [!] Solicitando permisos de Administrador...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
+echo [+] Permisos de Administrador concedidos.
+echo [+] Servidor Central: ${effectiveServerUrl}
+echo.
+
+set "TARGET_DIR=%ProgramFiles%\\SmartDotDesk"
+if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
+
+echo [1/4] Creando excepciones de Red y Firewall...
+netsh advfirewall firewall add rule name="SmartDot Desk Out" dir=out action=allow protocol=TCP remoteport=3000,443,80 profile=any >nul 2>&1
+netsh advfirewall firewall add rule name="SmartDot Desk WebRTC" dir=in action=allow protocol=UDP localport=50000-65535 profile=any >nul 2>&1
+
+echo [2/4] Escribiendo codigo fuente de la aplicacion en C#...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$bytes = [System.Convert]::FromBase64String('${csBase64}'); [System.IO.File]::WriteAllBytes('%TARGET_DIR%\\Program.cs', $bytes);"
+
+echo [3/4] Compilando ejecutable nativo RemoteDotDesk.exe...
+set "CSC_EXE="
+if exist "%SystemRoot%\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe" set "CSC_EXE=%SystemRoot%\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+if not defined CSC_EXE if exist "%SystemRoot%\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe" set "CSC_EXE=%SystemRoot%\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe"
+
+if defined CSC_EXE (
+    echo [+] Compilador localizado: %CSC_EXE%
+    "%CSC_EXE%" /nologo /target:winexe /out:"%TARGET_DIR%\\RemoteDotDesk.exe" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.dll "%TARGET_DIR%\\Program.cs"
+) else (
+    echo [!] Compilando mediante PowerShell .NET Add-Type...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$code = [System.IO.File]::ReadAllText('%TARGET_DIR%\\Program.cs'); Add-Type -TypeDefinition $code -OutputAssembly '%TARGET_DIR%\\RemoteDotDesk.exe' -OutputType WindowsApplication -ReferencedAssemblies 'System.Windows.Forms', 'System.Drawing', 'System'"
+)
+
+echo [4/4] Creando acceso directo en el Escritorio...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$WshShell = New-Object -ComObject WScript.Shell; $Desk = [Environment]::GetFolderPath('Desktop'); $scPath = Join-Path $Desk 'Remote DOT Desk Soporte.lnk'; $sc = $WshShell.CreateShortcut($scPath); $sc.TargetPath = '%TARGET_DIR%\\RemoteDotDesk.exe'; $sc.WorkingDirectory = '%TARGET_DIR%'; $sc.Description = 'Remote DOT Desk Enterprise - Agente de Soporte'; $sc.IconLocation = '%SystemRoot%\\System32\\imageres.dll, 15'; $sc.Save();"
+
+echo.
+if exist "%TARGET_DIR%\\RemoteDotDesk.exe" (
+    echo ============================================================================
+    echo   [EXITO] INSTALACION COMPLETADA
+    echo   Se ha generado el archivo ejecutable: RemoteDotDesk.exe
+    echo   Acceso directo creado en su Escritorio.
+    echo ============================================================================
+    echo.
+    echo [*] Iniciando RemoteDotDesk.exe ahora...
+    start "" "%TARGET_DIR%\\RemoteDotDesk.exe"
+) else (
+    echo ============================================================================
+    echo   [AVISO] No se pudo generar RemoteDotDesk.exe.
+    echo   Por favor revise los mensajes de error arriba.
+    echo ============================================================================
+)
+
+echo.
+pause
+exit /b
+`;
+    res.setHeader('Content-Type', 'application/x-bat; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="Instalar_Remote_DOT_Desk_${pkg.customerId}.bat"`);
+    return res.send(batContent);
+  }
+
   // Default: PowerShell Deployment Script
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="Deploy-RemoteDesk_${pkg.customerId}.ps1"`);

@@ -21,7 +21,10 @@ import {
   Clock,
   Sparkles,
   Info,
-  Code
+  Code,
+  Edit,
+  Save,
+  X
 } from 'lucide-react';
 
 export const CustomersAndDevicesView: React.FC = () => {
@@ -32,9 +35,11 @@ export const CustomersAndDevicesView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  // New Customer Form State
-  const [showAddCustomerModal, setShowAddCustomerModal] = useState<boolean>(false);
-  const [newCustomerData, setNewCustomerData] = useState({
+  // New & Edit Customer Modal State
+  const [showCustomerModal, setShowCustomerModal] = useState<boolean>(false);
+  const [customerModalMode, setCustomerModalMode] = useState<'create' | 'edit'>('create');
+  const [editingCustomerId, setEditingCustomerId] = useState<string>('');
+  const [customerFormData, setCustomerFormData] = useState({
     company_name: '',
     contact_name: '',
     phone: '',
@@ -128,24 +133,47 @@ export const CustomersAndDevicesView: React.FC = () => {
     }
   };
 
-  const handleCreateCustomer = async (e: React.FormEvent) => {
+  const handleOpenCreateCustomer = () => {
+    setCustomerModalMode('create');
+    setEditingCustomerId('');
+    setCustomerFormData({ company_name: '', contact_name: '', phone: '', email: '', address: '' });
+    setShowCustomerModal(true);
+  };
+
+  const handleOpenEditCustomer = (customer: any) => {
+    setCustomerModalMode('edit');
+    setEditingCustomerId(customer.id);
+    setCustomerFormData({
+      company_name: customer.company_name,
+      contact_name: customer.contact_name,
+      phone: customer.phone || '',
+      email: customer.email || '',
+      address: customer.address || '',
+    });
+    setShowCustomerModal(true);
+  };
+
+  const handleSubmitCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCustomerData.company_name || !newCustomerData.contact_name || !newCustomerData.email) return;
+    if (!customerFormData.company_name || !customerFormData.contact_name || !customerFormData.email) return;
 
     try {
-      const res = await fetch('/api/v1/customers', {
-        method: 'POST',
+      const url = customerModalMode === 'create' ? '/api/v1/customers' : `/api/v1/customers/${editingCustomerId}`;
+      const method = customerModalMode === 'create' ? 'POST' : 'PUT';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCustomerData),
+        body: JSON.stringify(customerFormData),
       });
 
       if (res.ok) {
-        setShowAddCustomerModal(false);
-        setNewCustomerData({ company_name: '', contact_name: '', phone: '', email: '', address: '' });
+        setShowCustomerModal(false);
+        setCustomerFormData({ company_name: '', contact_name: '', phone: '', email: '', address: '' });
         fetchCustomers();
       } else {
         const err = await res.json();
-        alert(err.error || 'Error al crear la empresa');
+        alert(err.error || 'Error al guardar la empresa');
       }
     } catch (err) {
       console.error(err);
@@ -552,7 +580,7 @@ export const CustomersAndDevicesView: React.FC = () => {
               <p className="text-xs text-slate-400">Cada empresa dispone de un Token de Enrolamiento para despliegues masivos.</p>
             </div>
             <button
-              onClick={() => setShowAddCustomerModal(true)}
+              onClick={handleOpenCreateCustomer}
               className="px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -572,13 +600,22 @@ export const CustomersAndDevicesView: React.FC = () => {
                       <h4 className="font-bold text-white text-base">{c.company_name}</h4>
                       <div className="text-xs text-slate-400 mt-0.5">Contacto: <strong className="text-slate-200">{c.contact_name}</strong></div>
                     </div>
-                    <button
-                      onClick={() => handleDeleteCustomer(c.id, c.company_name)}
-                      className="p-1.5 rounded bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 text-slate-400 transition-colors"
-                      title="Eliminar empresa"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEditCustomer(c)}
+                        className="p-1.5 rounded bg-slate-800 hover:bg-sky-950/60 hover:text-sky-300 text-slate-400 transition-colors"
+                        title="Editar información de la empresa"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCustomer(c.id, c.company_name)}
+                        className="p-1.5 rounded bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 text-slate-400 transition-colors"
+                        title="Eliminar empresa"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 text-xs text-slate-300 pt-1">
@@ -901,29 +938,31 @@ public class HardwareTelemetryCollector
         </div>
       )}
 
-      {/* Modal to Add Customer */}
-      {showAddCustomerModal && (
+      {/* Modal to Add / Edit Customer */}
+      {showCustomerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-base">Registrar Nueva Empresa Cliente</h3>
+              <h3 className="font-bold text-white text-base">
+                {customerModalMode === 'create' ? 'Registrar Nueva Empresa Cliente' : 'Editar Información de la Empresa'}
+              </h3>
               <button
-                onClick={() => setShowAddCustomerModal(false)}
+                onClick={() => setShowCustomerModal(false)}
                 className="text-slate-400 hover:text-white"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateCustomer} className="space-y-3 text-xs">
+            <form onSubmit={handleSubmitCustomer} className="space-y-3 text-xs">
               <div>
                 <label className="text-[11px] font-medium text-slate-400 block mb-1">Nombre de la Empresa (*):</label>
                 <input
                   type="text"
                   required
                   placeholder="Ej: Distribuidora Nacional S.A."
-                  value={newCustomerData.company_name}
-                  onChange={(e) => setNewCustomerData({ ...newCustomerData, company_name: e.target.value })}
+                  value={customerFormData.company_name}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, company_name: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 text-white px-3 py-2 rounded-lg focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -934,8 +973,8 @@ public class HardwareTelemetryCollector
                   type="text"
                   required
                   placeholder="Ej: Ing. Marcos Castillo"
-                  value={newCustomerData.contact_name}
-                  onChange={(e) => setNewCustomerData({ ...newCustomerData, contact_name: e.target.value })}
+                  value={customerFormData.contact_name}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, contact_name: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 text-white px-3 py-2 rounded-lg focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -946,8 +985,8 @@ public class HardwareTelemetryCollector
                   type="email"
                   required
                   placeholder="contacto@distribuidora.com"
-                  value={newCustomerData.email}
-                  onChange={(e) => setNewCustomerData({ ...newCustomerData, email: e.target.value })}
+                  value={customerFormData.email}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, email: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 text-white px-3 py-2 rounded-lg focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -957,8 +996,8 @@ public class HardwareTelemetryCollector
                 <input
                   type="text"
                   placeholder="809-555-9000"
-                  value={newCustomerData.phone}
-                  onChange={(e) => setNewCustomerData({ ...newCustomerData, phone: e.target.value })}
+                  value={customerFormData.phone}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, phone: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 text-white px-3 py-2 rounded-lg focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -968,8 +1007,8 @@ public class HardwareTelemetryCollector
                 <input
                   type="text"
                   placeholder="Av. 27 de Febrero #120"
-                  value={newCustomerData.address}
-                  onChange={(e) => setNewCustomerData({ ...newCustomerData, address: e.target.value })}
+                  value={customerFormData.address}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, address: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 text-white px-3 py-2 rounded-lg focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -977,16 +1016,16 @@ public class HardwareTelemetryCollector
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddCustomerModal(false)}
+                  onClick={() => setShowCustomerModal(false)}
                   className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-bold"
+                  className="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-bold shadow-lg shadow-sky-600/20"
                 >
-                  Guardar Empresa
+                  {customerModalMode === 'create' ? 'Guardar Empresa' : 'Actualizar Cambios'}
                 </button>
               </div>
             </form>

@@ -289,6 +289,75 @@ export interface PingDeviceResult {
   timestamp: string;
 }
 
+export type SmartDotAppId = 'dotdesk' | 'dotbill' | 'dotcrm' | 'dotvision' | 'dotshome';
+
+export interface SmartDotAppModule {
+  id: SmartDotAppId;
+  name: string;
+  shortName: string;
+  tagline: string;
+  description: string;
+  color: string;
+  badge: string;
+  status: 'active' | 'ready' | 'beta';
+}
+
+export type SmartDeviceType = 
+  | 'light' 
+  | 'thermostat' 
+  | 'plug' 
+  | 'lock' 
+  | 'speaker' 
+  | 'tv' 
+  | 'vacuum' 
+  | 'sensor' 
+  | 'camera' 
+  | 'hub';
+
+export type SmartHomeEcoSystem = 'google_home' | 'matter' | 'zigbee' | 'tuya' | 'local_lan';
+
+export interface SmartHomeDevice {
+  id: string;
+  name: string;
+  room: string;
+  type: SmartDeviceType;
+  ecosystem: SmartHomeEcoSystem;
+  isOnline: boolean;
+  isOn: boolean;
+  batteryLevel?: number;
+  brightness?: number; // 0 - 100
+  colorHex?: string;
+  targetTemperature?: number; // °C
+  currentTemperature?: number; // °C
+  powerConsumptionWatts?: number;
+  volume?: number; // 0 - 100
+  isLocked?: boolean;
+  ipAddress?: string;
+  model: string;
+  lastUpdated: string;
+}
+
+export interface SmartHomeRoom {
+  id: string;
+  name: string;
+  icon: string;
+  floor: number;
+  temperature: number;
+  humidity: number;
+  devicesCount: number;
+}
+
+export interface SpeedTestResult {
+  downloadMbps: number;
+  uploadMbps: number;
+  pingMs: number;
+  jitterMs: number;
+  isp: string;
+  serverLocation: string;
+  testedAt: string;
+  status: 'optimal' | 'good' | 'slow';
+}
+
 export type ActiveTab =
   | 'technician-console'
   | 'secure-remote-control'
@@ -298,6 +367,7 @@ export type ActiveTab =
   | 'audit-logs'
   | 'notifications'
   | 'tickets'
+  | 'whatsapp'
   | 'windows-agent'
   | 'customers-devices'
   | 'auth'
@@ -306,6 +376,78 @@ export type ActiveTab =
   | 'api-playground'
   | 'roadmap'
   | 'server-health';
+
+// SmartDot Invoicing (DOTBILL) types
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  taxId: string; // RNC o CIF
+  issueDate: string;
+  dueDate: string;
+  items: InvoiceItem[];
+  subtotal: number;
+  taxAmount: number; // ITBIS / IVA (18%)
+  totalAmount: number;
+  status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+  notes?: string;
+  currency: string;
+}
+
+// SmartDot CCTV / Surveillance (DOTVISION) types
+export interface SecurityCamera {
+  id: string;
+  name: string;
+  location: string;
+  customerId: string;
+  customerName: string;
+  ipAddress: string;
+  rtspUrl: string;
+  streamUrl?: string; // WebRTC or HLS simulated feed
+  status: 'ONLINE' | 'OFFLINE' | 'RECORDING' | 'MOTION_DETECTED';
+  resolution: string; // e.g. "4K UHD", "1080p 60fps"
+  ptzSupport: boolean;
+  nightVision: boolean;
+  fps: number;
+  bitrateKbps: number;
+}
+
+export interface WhatsAppConfig {
+  enabled: boolean;
+  provider: 'twilio' | 'meta' | 'webhook' | 'browser_direct';
+  recipientNumber: string;
+  twilioAccountSid?: string;
+  twilioAuthToken?: string;
+  twilioFromNumber?: string;
+  metaApiToken?: string;
+  metaPhoneNumberId?: string;
+  webhookUrl?: string;
+  notifyOnCritical: boolean;
+  notifyOnHigh: boolean;
+  notifyOnMedium: boolean;
+  notifyOnLow: boolean;
+}
+
+export interface WhatsAppDispatchLog {
+  id: string;
+  timestamp: string;
+  ticketNumber: string;
+  recipient: string;
+  provider: string;
+  status: 'SENT' | 'SIMULATED' | 'FAILED' | 'READY_LINK';
+  messagePreview: string;
+  directWhatsAppWebUrl: string;
+  details?: string;
+}
 
 export type FileTransferDirection = 'UPLOAD' | 'DOWNLOAD';
 

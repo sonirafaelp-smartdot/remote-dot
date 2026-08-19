@@ -16,6 +16,8 @@ import { notificationsRouter } from './backend/routes/notifications.ts';
 import { filesRouter } from './backend/routes/files.ts';
 import { installersRouter } from './backend/routes/installers.ts';
 import { testingRouter } from './backend/routes/testing.ts';
+import { whatsappRouter } from './backend/routes/whatsapp.ts';
+import { smarthomeRouter } from './backend/routes/smarthome.ts';
 import { realtimeHub } from './backend/realtime.ts';
 
 async function startServer() {
@@ -69,6 +71,8 @@ async function startServer() {
   app.use('/api/v1/files', filesRouter);
   app.use('/api/v1/installers', installersRouter);
   app.use('/api/v1/testing', testingRouter);
+  app.use('/api/v1/whatsapp', whatsappRouter);
+  app.use('/api/v1/smarthome', smarthomeRouter);
 
   // Quick API Overview endpoint
   app.get('/api/v1', (_req, res) => {

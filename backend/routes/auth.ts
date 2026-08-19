@@ -393,6 +393,79 @@ authRouter.post('/technicians', (req: Request, res: Response) => {
   });
 });
 
+// PUT /api/v1/auth/technicians/:id (Update technician details)
+authRouter.put('/technicians/:id', (req: Request, res: Response) => {
+  const tech = db.technicians.get(req.params.id);
+  if (!tech) {
+    return res.status(404).json({ error: 'Técnico no encontrado' });
+  }
+
+  const user = db.users.get(tech.user_id);
+  if (!user) {
+    return res.status(404).json({ error: 'Usuario asociado no encontrado' });
+  }
+
+  const { full_name, email, specialty, max_concurrent_sessions, is_active, password } = req.body;
+
+  if (full_name) user.full_name = full_name.trim();
+  if (email) user.email = email.toLowerCase().trim();
+  if (password && password.trim().length >= 4) {
+    user.password_hash = db.hashPassword(password.trim());
+  }
+  if (is_active !== undefined) user.is_active = Boolean(is_active);
+  user.updated_at = new Date().toISOString();
+
+  if (specialty) tech.specialty = specialty.trim();
+  if (max_concurrent_sessions !== undefined) tech.max_concurrent_sessions = Number(max_concurrent_sessions);
+  tech.updated_at = new Date().toISOString();
+
+  db.logAudit(
+    user.id,
+    'TECHNICIAN_UPDATED',
+    'Technician',
+    tech.id,
+    { full_name: user.full_name, email: user.email, specialty: tech.specialty },
+    req.ip || '127.0.0.1'
+  );
+
+  return res.json({
+    message: 'Datos del técnico actualizados correctamente.',
+    technician: {
+      ...tech,
+      full_name: user.full_name,
+      email: user.email,
+      is_active: user.is_active,
+    },
+  });
+});
+
+// DELETE /api/v1/auth/technicians/:id (Delete/Decommission technician)
+authRouter.delete('/technicians/:id', (req: Request, res: Response) => {
+  const tech = db.technicians.get(req.params.id);
+  if (!tech) {
+    return res.status(404).json({ error: 'Técnico no encontrado' });
+  }
+
+  const user = db.users.get(tech.user_id);
+  const techName = user?.full_name || tech.id;
+
+  db.technicians.delete(tech.id);
+  if (user) {
+    db.users.delete(user.id);
+  }
+
+  db.logAudit(
+    undefined,
+    'TECHNICIAN_DELETED',
+    'Technician',
+    tech.id,
+    { full_name: techName },
+    req.ip || '127.0.0.1'
+  );
+
+  return res.json({ message: `Técnico ${techName} eliminado con éxito del sistema.` });
+});
+
 // GET /api/v1/auth/users
 authRouter.get('/users', (_req: Request, res: Response) => {
   const users = Array.from(db.users.values()).map((u) => ({
